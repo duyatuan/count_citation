@@ -29,7 +29,6 @@ def search_phrase(querier, article):
   result = {}
   result['num_citations'] = max_citations
   result['duplicate'] = duplicate
-  time.sleep(random.randint(60, 300))
   return result
 
 def parse_bibtex(filename):
@@ -61,6 +60,18 @@ def parse_bibtex(filename):
 def get_result_num_citation(result):
   return result['num_citations']
 
+def sleep_print_progress(sleep_time_s):
+  period = 100
+  per_period = sleep_time_s / period
+  for i in range(period):
+    if ((i % 10) == 0):
+      print('{}%'.format(i), end = '') 
+    print('.', end='')
+    sys.stdout.flush()
+    time.sleep(per_period)
+  print(' Done')
+
+
 def main():
   ScholarConf.LOG_LEVEL = 1 
   ScholarUtils.log('info', 'using log level %d' % ScholarConf.LOG_LEVEL)
@@ -69,9 +80,20 @@ def main():
   settings.set_citation_format(ScholarSettings.CITFORM_BIBTEX)
   querier.apply_settings(settings)
 
+  result_path = "./result"
+  try: 
+    os.mkdir(result_path)
+  except OSError:
+    print('Cannot create result folder: {}. If there is already such a folder, please consider renamming it to avoid mixing results. Exit now'.format(result_path))
+    return
+  else:
+    print('The results will be stored here: {}'.format(result_path))
+
+  #It's better to do manually instead of scanning the whole directory
+  #We don't know when Google takes us down
   conferences = ['cases_2000', 'cases_2001', 'cases_2002', 'cases_2003', 'cases_2004', 'cases_2005']
-  #conferences = ['cases_2000', 'cases_2001', 'cases_2002', 'cases_2003', 'cases_2004', 'emsof_2001', 'emsof_2002', 'emsof_2003', 'emsof_2004', 'codes_isss_2003', 'codes_isss_2004']
-  #conferences = ['codes_isss_2004_2']
+  #conferences = ['emsof_2001', 'emsof_2002', 'emsof_2003', 'emsof_2004', 'emsof_2005']
+  #conferences = ['codes_isss_2003', 'codes_isss_2004' 'codes_isss_2004_2' 'codes_isss_2005']
 
   for conf in conferences:
     print('============================================')
@@ -80,24 +102,30 @@ def main():
     print('============================================')
     print('============================================')
     all_results = []
-    f = open("result20/{}.csv".format(conf), "w")
+    f = open("result/{}.csv".format(conf), "w")
     f.write("Title\tAuthor\tYear\tNum Citations\tDuplicate\n")
     #parse bibtex file
-    all_articles = parse_bibtex('{}.bib'.format(conf))
+    all_articles = parse_bibtex('bibtex/{}.bib'.format(conf))
     count = 0
     for article in all_articles:
       result = search_phrase(querier, article)
       article.update(result)
       all_results.append(article)
       print('Title = {},  num citations = {}'.format(article['title'], result['num_citations']))
+      sleep_time = random.randint(60, 300)
+      print('Sleep for {} seconds: '.format(sleep_time), end = '')
+      sleep_print_progress(sleep_time)
+      count = count + 1
+      if count >= 15:
+        sleep_time = random.randint(30, 45)
+        print('Reaching 15 acticles count, sleep for {} minutes: '.format(sleep_time), end = '')
+        sleep_print_progress(sleep_time * 60)
+        count = 0
+
+    #write results to csv file
     all_results.sort(key=get_result_num_citation, reverse=True)
     for result in all_results:
       f.write("{}\t{}\t{}\t{}\t{}\n".format(result['title'], result['author'], result['year'], result['num_citations'], result['duplicate']))
-      count = count + 1
-      if count >= 15:
-        print('Reaching 15 acticles count, sleep for 30-45 minutes')
-        time.sleep(random.randint(60*30, 60*45))
-        count = 0
     f.close()
 
 if __name__ == "__main__":
